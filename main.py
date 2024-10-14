@@ -68,24 +68,41 @@ async def schedule_meeting_message():
     channel = bot.get_channel(CHANNEL_ID)
 
     if channel is None:
+        channel = await bot.fetch_channel(CHANNEL_ID)
+
+    if channel is None:
+        print("No channel found!")
         return
 
     # Post only on tuesdays and saturdays
     if current_day == WEDNESDAY - 1 or current_day == SUNDAY - 1:
         await send_message(channel)
+    else:
+        print("Wrong day to post!")
 
 @bot.command(name='meeting')
 async def manual_meeting_message(ctx):
     await send_message(ctx.channel)
 
 
+async def fetch_members(channel, id_list):
+    members = channel.guild.members
+    found_members = list(filter(lambda x: x.id in id_list, members))
+
+    if len(found_members) == len(id_list):
+        return found_members
+
+    await channel.guild.query_members(user_ids=id_list, cache=True)
+
+    return list(filter(lambda x: x.id in id_list, channel.guild.members))
 
 async def update_attendee_list(channel):
     msg = await channel.fetch_message(schedule_meeting_message.msg_id)
 
     reaction = next(x for x in msg.reactions if x.emoji == ATTENDANCE_EMOJI)
     users = [user async for user in reaction.users() if user.id != bot.user.id]
-    attendees = list(map(lambda x: x.display_name, users))
+    members = await fetch_members(channel, list(map(lambda x: x.id, users)))
+    attendees = list(map(lambda x: x.nick if x.nick is not None else x.display_name, members))
 
     msg_content = get_day_message()
 
